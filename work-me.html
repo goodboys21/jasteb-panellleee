@@ -123,9 +123,7 @@
   </div>
 
 <script>
-const API_URL = 'https://jsonblob.com/api/jsonBlob/1413877719128793088';
-const TELEGRAM_TOKEN = '7964560249:AAF78QqL2JveR3LvAqkS42c35WSMljAQqa4'; // ganti token lo
-const TELEGRAM_CHAT_ID = '7081489041'; // ganti id owner lo
+const API_URL = '/api/email';
 
 const emailListEl = document.getElementById('emailList');
 const form = document.getElementById('emailForm');
@@ -138,52 +136,7 @@ const addSpinner = document.getElementById('addSpinner');
 const welcomePopup = document.getElementById('welcomePopup');
 const welcomeCloseBtn = document.getElementById('welcomeCloseBtn');
 
-
-// === SEND EMAIL NOTIF ===
-async function sendEmailNotif(type, email) {
-  try {
-    let url = '';
-    if (type === 'add') {
-      url = `https://sendmail-lime.vercel.app/add?to=${encodeURIComponent(email)}`;
-    } else if (type === 'del') {
-      url = `https://sendmail-lime.vercel.app/del?to=${encodeURIComponent(email)}`;
-    }
-
-    if (url) {
-      await fetch(url);
-      console.log(`Email notif sent for ${type}: ${email}`);
-    }
-  } catch (err) {
-    console.error(`Failed to send email notif (${type}):`, err);
-  }
-}
-
-// === SEND TELEGRAM NOTIF ===
-async function sendTelegramNotif(action, email, ip, total) {
-  const text = `🌀 New Notification 🌀
-
-Action: ${action}
-IP: ${ip || 'N/A'}
-Email: ${email}
-
-Total Email: ${total}`;
-
-  try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: text,
-        parse_mode: 'Markdown'
-      })
-    });
-  } catch (err) {
-    console.error("Failed to send Telegram notif:", err);
-  }
-}
-
-// Fetch current data
+// === Fetch email list ===
 async function fetchEmails() {
   try {
     const res = await fetch(API_URL);
@@ -196,7 +149,7 @@ async function fetchEmails() {
   }
 }
 
-// Render email list
+// === Render email list ===
 function renderEmails(emails) {
   if (emails.length === 0) {
     emailListEl.innerHTML = `<p class="text-center text-gray-500">No emails added yet.</p>`;
@@ -230,12 +183,12 @@ function renderEmails(emails) {
   emailListEl.innerHTML = items.join('');
 }
 
-// Validate email
+// === Validate email ===
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// Popup notif
+// === Popup notif ===
 function showPopup(message, success = true) {
   popupText.textContent = message;
   popup.classList.remove('opacity-0', 'pointer-events-none');
@@ -252,37 +205,18 @@ function showPopup(message, success = true) {
   }, 2500);
 }
 
-// Add new email
+// === Add new email ===
 async function addEmail(email) {
   formMessage.textContent = '';
   try {
-    const currentData = await fetchEmails();
-    if (currentData.some(e => e.email.toLowerCase() === email.toLowerCase())) {
-      formMessage.textContent = 'This email is already added.';
-      return null;
-    }
-
-    const ipRes = await fetch('https://api.ipify.org?format=json');
-    const ipData = await ipRes.json();
-    const ip = ipData.ip;
-
-    const newEntry = { email, addedAt: new Date().toISOString(), ip };
-    const updatedData = [...currentData, newEntry];
-
     const res = await fetch(API_URL, {
-      method: 'PUT',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedData),
+      body: JSON.stringify({ email }),
     });
-    if (!res.ok) throw new Error('Failed to update data');
-
-    // kirim notif telegram
-    await sendTelegramNotif('Add', email, ip, updatedData.length);
-
-    // kirim notif email
-    await sendEmailNotif('add', email);
-
-    return updatedData;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add email');
+    return data.data;
   } catch (error) {
     console.error(error);
     formMessage.textContent = 'Failed to add email. Please try again later.';
@@ -290,7 +224,7 @@ async function addEmail(email) {
   }
 }
 
-// Delete email
+// === Delete email ===
 async function deleteEmail(index, btn) {
   try {
     if (!btn) return;
@@ -300,28 +234,12 @@ async function deleteEmail(index, btn) {
     if (spinner) spinner.classList.remove('hidden');
     if (textSpan) textSpan.classList.add('opacity-0');
 
-    const currentData = await fetchEmails();
-    if (index < 0 || index >= currentData.length) return;
+    const res = await fetch(`${API_URL}/${index}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete');
 
-    const removed = currentData[index];
-    currentData.splice(index, 1);
-
-    const res = await fetch(API_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(currentData),
-    });
-    if (!res.ok) throw new Error('Failed to delete email');
-
-    renderEmails(currentData);
+    renderEmails(data.data);
     showPopup('Delete successful', true);
-
-    // kirim notif telegram
-    await sendTelegramNotif('Delete', removed.email, removed.ip, currentData.length);
-
-    // kirim notif email
-    await sendEmailNotif('del', removed.email);
-
   } catch (error) {
     console.error(error);
     alert('Failed to delete email.');
@@ -336,7 +254,7 @@ async function deleteEmail(index, btn) {
   }
 }
 
-// Init
+// === Init ===
 async function init() {
   const emails = await fetchEmails();
   renderEmails(emails);
@@ -362,7 +280,7 @@ form.addEventListener('submit', async (e) => {
   if (updatedEmails) {
     renderEmails(updatedEmails);
     formMessage.textContent = '';
-    showPopup('Added successful', true);
+    showPopup('Added successfully', true);
     form.reset();
   }
 
@@ -372,7 +290,7 @@ form.addEventListener('submit', async (e) => {
 
 window.addEventListener('load', init);
 
-// Show welcome popup only once per session
+// === Welcome popup ===
 function showWelcomePopupOnce() {
   if (!sessionStorage.getItem('welcomeShown')) {
     sessionStorage.setItem('welcomeShown', 'true');
@@ -395,7 +313,6 @@ welcomeCloseBtn.addEventListener('click', () => {
   hideWelcomePopup();
 });
 
-// Also close welcome popup if user clicks outside the popup content
 welcomePopup.addEventListener('click', (e) => {
   if (e.target === welcomePopup) {
     hideWelcomePopup();
