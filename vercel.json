@@ -7,13 +7,7 @@
     }
   ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/email.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
+    { "src": "/api/(.*)", "dest": "/api/email.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
