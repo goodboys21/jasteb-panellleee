@@ -1,0 +1,356 @@
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CG Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Popup animation */
+    @keyframes popupFadeIn {
+      0% {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    @keyframes popupFadeOut {
+      0% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+    }
+    /* Spinner animation */
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    .spinner {
+      border: 3px solid transparent;
+      border-top-color: white;
+      border-radius: 50%;
+      width: 1rem;
+      height: 1rem;
+      animation: spin 1s linear infinite;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+  <header class="bg-white shadow-md sticky top-0 z-30">
+    <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-center">
+      <h1 class="text-2xl font-semibold text-gray-900">CG Panel</h1>
+    </div>
+  </header>
+
+  <main class="flex-grow max-w-4xl mx-auto px-6 py-10 w-full">
+    <section class="bg-white rounded-lg shadow-md p-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-6 text-center">Add Email</h2>
+      <form id="emailForm" class="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-4 sm:space-y-0">
+        <input
+          type="email"
+          id="emailInput"
+          placeholder="Enter email address"
+          required
+          class="flex-grow border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-700"
+        />
+        <button
+          type="submit"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md px-6 py-2 transition flex items-center justify-center space-x-2"
+        >
+          <span>Add</span>
+          <svg id="addSpinner" class="hidden spinner" viewBox="0 0 24 24" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+        </button>
+      </form>
+      <p id="formMessage" class="mt-3 text-center text-sm text-red-600"></p>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4 text-center">List Email</h2>
+      <div id="emailList" class="bg-white rounded-lg shadow-md p-6 max-h-[400px] overflow-y-auto">
+        <p class="text-center text-gray-500">Loading emails...</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-white shadow-inner py-4 mt-6">
+    <div class="max-w-4xl mx-auto px-6 text-center text-gray-500 text-sm select-none">
+      &copy; 2025 CG Panel. All rights reserved.
+    </div>
+  </footer>
+
+  <!-- Popup container -->
+  <div id="popup" class="fixed bottom-10 left-[48%] transform -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-md shadow-lg opacity-0 pointer-events-none z-50 flex items-center justify-center text-center min-w-[180px]">
+    <span id="popupText" class="text-sm font-medium">Added successfully</span>
+  </div>
+
+<script>
+const API_URL = 'https://jsonblob.com/api/jsonBlob/1413877719128793088';
+const TELEGRAM_TOKEN = '7964560249:AAF78QqL2JveR3LvAqkS42c35WSMljAQqa4'; // ganti token lo
+const TELEGRAM_CHAT_ID = '7081489041'; // ganti id owner lo
+
+const emailListEl = document.getElementById('emailList');
+const form = document.getElementById('emailForm');
+const emailInput = document.getElementById('emailInput');
+const formMessage = document.getElementById('formMessage');
+const popup = document.getElementById('popup');
+const popupText = document.getElementById('popupText');
+const addSpinner = document.getElementById('addSpinner');
+
+
+// === SEND EMAIL NOTIF ===
+async function sendEmailNotif(type, email) {
+  try {
+    let url = '';
+    if (type === 'add') {
+      url = `https://sendmail-lime.vercel.app/add?to=${encodeURIComponent(email)}`;
+    } else if (type === 'del') {
+      url = `https://sendmail-lime.vercel.app/del?to=${encodeURIComponent(email)}`;
+    }
+
+    if (url) {
+      await fetch(url);
+      console.log(`Email notif sent for ${type}: ${email}`);
+    }
+  } catch (err) {
+    console.error(`Failed to send email notif (${type}):`, err);
+  }
+}
+
+// === SEND TELEGRAM NOTIF ===
+async function sendTelegramNotif(action, email, ip, total) {
+  const text = `🌀 New Notification 🌀
+
+Action: ${action}
+IP: ${ip || 'N/A'}
+Email: ${email}
+
+Total Email: ${total}`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: text,
+        parse_mode: 'Markdown'
+      })
+    });
+  } catch (err) {
+    console.error("Failed to send Telegram notif:", err);
+  }
+}
+
+// Fetch current data
+async function fetchEmails() {
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error('Failed to fetch data');
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    emailListEl.innerHTML = `<p class="text-center text-red-600">Error loading emails.</p>`;
+    return [];
+  }
+}
+
+// Render email list
+function renderEmails(emails) {
+  if (emails.length === 0) {
+    emailListEl.innerHTML = `<p class="text-center text-gray-500">No emails added yet.</p>`;
+    return;
+  }
+  const items = emails.map(({ email, addedAt, ip }, index) => {
+    return `
+      <div class="flex justify-between items-center border-b border-gray-200 py-2 last:border-b-0">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-4">
+          <span class="font-medium text-gray-900 break-all">${email}</span>
+          <span class="text-sm text-gray-500">Added: ${new Date(addedAt).toLocaleString()}</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button 
+            onclick="deleteEmail(${index}, this)" 
+            class="text-red-600 hover:underline text-xs font-semibold flex items-center space-x-1"
+            type="button"
+          >
+            <span>Delete</span>
+            <svg class="hidden spinner w-4 h-4 text-red-600" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" 
+                stroke="currentColor" stroke-width="4" fill="none"></circle>
+              <path class="opacity-75" fill="currentColor" 
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+  });
+  emailListEl.innerHTML = items.join('');
+}
+
+// Validate email
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// Popup notif
+function showPopup(message, success = true) {
+  popupText.textContent = message;
+  popup.classList.remove('opacity-0', 'pointer-events-none');
+  popup.classList.remove('bg-red-600', 'bg-green-600');
+  popup.classList.add(success ? 'bg-green-600' : 'bg-red-600');
+  popup.style.animation = 'popupFadeIn 0.3s forwards';
+
+  setTimeout(() => {
+    popup.style.animation = 'popupFadeOut 0.3s forwards';
+    popup.addEventListener('animationend', () => {
+      popup.classList.add('opacity-0', 'pointer-events-none');
+      popup.style.animation = '';
+    }, { once: true });
+  }, 2500);
+}
+
+// Add new email
+async function addEmail(email) {
+  formMessage.textContent = '';
+  try {
+    const currentData = await fetchEmails();
+    if (currentData.some(e => e.email.toLowerCase() === email.toLowerCase())) {
+      formMessage.textContent = 'This email is already added.';
+      return null;
+    }
+
+    const ipRes = await fetch('https://api.ipify.org?format=json');
+    const ipData = await ipRes.json();
+    const ip = ipData.ip;
+
+    const newEntry = { email, addedAt: new Date().toISOString(), ip };
+    const updatedData = [...currentData, newEntry];
+
+    const res = await fetch(API_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedData),
+    });
+    if (!res.ok) throw new Error('Failed to update data');
+
+    // kirim notif telegram
+    // kirim notif telegram
+await sendTelegramNotif('Add', email, ip, updatedData.length);
+
+// kirim notif email
+await sendEmailNotif('add', email);
+
+    return updatedData;
+  } catch (error) {
+    console.error(error);
+    formMessage.textContent = 'Failed to add email. Please try again later.';
+    return null;
+  }
+}
+
+// Delete email
+async function deleteEmail(index, btn) {
+  try {
+    if (!btn) return;
+    const spinner = btn.querySelector('.spinner');
+    const textSpan = btn.querySelector('span');
+    btn.disabled = true;
+    if (spinner) spinner.classList.remove('hidden');
+    if (textSpan) textSpan.classList.add('opacity-0');
+
+    const currentData = await fetchEmails();
+    if (index < 0 || index >= currentData.length) return;
+
+    const removed = currentData[index];
+    currentData.splice(index, 1);
+
+    const res = await fetch(API_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentData),
+    });
+    if (!res.ok) throw new Error('Failed to delete email');
+
+    renderEmails(currentData);
+    showPopup('Delete successful', true);
+
+    // kirim notif telegram
+    // kirim notif telegram
+await sendTelegramNotif('Delete', removed.email, removed.ip, currentData.length);
+
+// kirim notif email
+await sendEmailNotif('del', removed.email);
+
+  } catch (error) {
+    console.error(error);
+    alert('Failed to delete email.');
+  } finally {
+    if (btn) {
+      const spinner = btn.querySelector('.spinner');
+      const textSpan = btn.querySelector('span');
+      btn.disabled = false;
+      if (spinner) spinner.classList.add('hidden');
+      if (textSpan) textSpan.classList.remove('opacity-0');
+    }
+  }
+}
+
+// Init
+async function init() {
+  const emails = await fetchEmails();
+  renderEmails(emails);
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  formMessage.textContent = '';
+
+  const email = emailInput.value.trim();
+  if (!isValidEmail(email)) {
+    formMessage.textContent = 'Please enter a valid email address.';
+    return;
+  }
+
+  formMessage.textContent = 'Adding email...';
+  const submitBtn = form.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  addSpinner.classList.remove('hidden');
+
+  const updatedEmails = await addEmail(email);
+  if (updatedEmails) {
+    renderEmails(updatedEmails);
+    formMessage.textContent = '';
+    showPopup('Added successful', true);
+    form.reset();
+  }
+
+  addSpinner.classList.add('hidden');
+  submitBtn.disabled = false;
+});
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
